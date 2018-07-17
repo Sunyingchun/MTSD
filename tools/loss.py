@@ -18,17 +18,16 @@ def cross_entropy2d(input, target, weight=None, size_average=True):
     elif h != ht and w != wt:
         raise Exception("Only support upsampling")
 
-    log_p = F.log_softmax(input, dim=1)
-    log_p = log_p.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
-    log_p = log_p[target.view(-1, 1).repeat(1, c) >= 0]
-    log_p = log_p.view(-1, c)
+    input = input.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
 
     mask = target >= 0
     target = target[mask]
-    loss = F.nll_loss(log_p, target, ignore_index=250,
+    loss_fn = nn.CrossEntropyLoss(ignore_index=250,
                       weight=weight, size_average=False)
+    loss = loss_fn(input, target)
     if size_average:
-        loss /= mask.data.sum()
+        loss = loss / mask.sum().item()
+
     return loss
 
 def bootstrapped_cross_entropy2d(input, target, K, weight=None, size_average=True):
@@ -75,7 +74,7 @@ def multi_scale_cross_entropy2d(input, target, weight=None, size_average=True, s
 
     return loss
 
-def focalLoss(input, target, class_num, alpha=None, gamma=0, size_average=True):
+def focalLoss(input, target, class_num, alpha=None, gamma=2, size_average=True):
     if alpha is None:
         alpha = Variable(torch.ones(class_num, 1))
     else:

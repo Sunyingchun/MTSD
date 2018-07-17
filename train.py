@@ -125,7 +125,7 @@ def train():
             segMaps = Variable(segMaps.cuda())
 
             optimizer.zero_grad()
-            loss_seg, loss_det = model(images, labels, segMaps)
+            loss_seg, loss_det = model(images, labels, segMaps)# 
 
             # fuse loss
             # loss = loss_seg + loss_det
@@ -144,7 +144,7 @@ def train():
                         plt.pause(0.033)
 
                 print("[Epoch %d/%d, Batch %d/%d] Learning_rate: %.7f Loss_seg: %.4f Loss_det: %.4f" % \
-                (epoch+1, config.max_epoch, i, len(trainloader), optimizer.param_groups[0]['lr'], loss_seg.data[0], loss_det.data[0]))
+                (epoch+1, config.max_epoch, i, len(trainloader), optimizer.param_groups[0]['lr'], loss_seg.data[0], loss_det.data[0]))#
 
         # model eval pocess
         lossSegVal = []
@@ -156,18 +156,21 @@ def train():
             labels_val = Variable(labels_val.cuda(), volatile=True)
             segMap_val = Variable(segMap_val.cuda(), volatile=True)
 
-            outputSeg, outputDet = model(images_val)
-            if config.visdomVal:            
-                loss_segVal, loss_detVal = model(images_val, labels_val, segMap_val)   
-                lossSegVal.append(loss_segVal.data[0]) 
-                lossDetVal.append(loss_detVal.data[0])
+            outputSeg, outputDet = model(images_val)       
+            #loss_segVal, loss_detVal = model(images_val, labels_val, segMap_val)   
+            #lossSegVal.append(loss_segVal.data[0]) 
+            #lossDetVal.append(loss_detVal.data[0])
 
             pred = outputSeg.data.max(1)[1].cpu().numpy()
             gt = segMap_val.data.cpu().numpy()
             running_metrics.update(gt, pred)
 
             AP = evalDet(outputDet, labels_val, config.numClasses, config.imgSize, config.confThresh, config.iouThresh)
-            APs.append(AP)   
+            APs.append(AP) 
+  
+        # output valid loss
+        #print("[Epoch %d/%d] Loss_segVal: %.4f Loss_detVal: %.4f\n" % \
+        #     (epoch+1, config.max_epoch, np.mean(lossSegVal), np.mean(lossDetVal)))  
 
         score, class_iou = running_metrics.get_scores()
         for k, v in score.items():

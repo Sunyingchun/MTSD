@@ -83,10 +83,7 @@ def evalDet(detections, targets, numClasses, imgSize, confThresh, iouThresh):
     correct = []
     detections = non_max_suppression(detections, numClasses, confThresh, iouThresh)[0]
 
-    for i in range(targets.size(1)):
-        if targets[0, i, 3].data.cpu().numpy()==0:
-            annotations = targets[0, 0:i]
-            break
+    annotations = targets[0, targets[0, :, 3] != 0]
 
     if detections is None:
         # If there are no detections but there are annotations mask as zero AP
@@ -94,14 +91,11 @@ def evalDet(detections, targets, numClasses, imgSize, confThresh, iouThresh):
             AP = 0
     else:
         # Get detections sorted by decreasing confidence scores
-        sortIndex = np.argsort(-detections[:, 4])
-        detectionsSort = torch.FloatTensor(detections.shape).cuda()
-        for n in range(detections.size(0)):
-            detectionsSort[n] = detections[sortIndex[n]]
+        detections = detections[np.argsort(-detections[:, 4])]
 
         # If no annotations add number of detections as incorrect
         if annotations.size(0) == 0:
-            correct.extend([0 for _ in range(len(detectionsSort))])
+            correct.extend([0 for _ in range(len(detections))])
         else:
             # Extract target boxes as (x1, y1, x2, y2)
             target_boxes = Variable(torch.FloatTensor(annotations[:, 1:].shape), requires_grad=False)
@@ -112,17 +106,15 @@ def evalDet(detections, targets, numClasses, imgSize, confThresh, iouThresh):
             target_boxes *= imgSize
 
             detected = []
-            for *pred_bbox, conf, obj_conf, obj_pred in detectionsSort:
+            for *pred_bbox, conf, obj_conf, obj_pred in detections:
 
-                pred_bbox = Variable(torch.FloatTensor(pred_bbox).view(1, -1), requires_grad=False)
+                pred_bbox = torch.FloatTensor(pred_bbox).view(1, -1)
                 # Compute iou with target boxes
                 iou = bbox_iou(pred_bbox, target_boxes)
                 # Extract index of largest overlap
-                best_i = np.argmax(iou.data.cpu().numpy())
+                best_i = np.argmax(iou)
                 # If overlap exceeds threshold and classification is correct mark as correct
-                if (iou[best_i] > iouThresh).data.numpy() == 1 and \
-                   (obj_pred == annotations[best_i, 0]).data.cpu().numpy() == 1 and \
-                    best_i not in detected:
+                if iou[best_i] > iouThresh and obj_pred.cpu().numpy() == annotations[best_i, 0].cpu().numpy() and best_i not in detected:
                     correct.append(1)
                     detected.append(best_i)
                 else:
@@ -203,8 +195,7 @@ def bbox_iou(box1, box2, x1y1x2y2=True):
 
     return iou
 
-
-def non_max_suppression(prediction, num_classes, conf_thres=0.24, nms_thres=0.45):
+def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
     """
     Removes detections with lower object confidence score than 'conf_thres' and performs
     Non-Maximum Suppression to further filter detections.
@@ -224,31 +215,21 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.24, nms_thres=0.45
     for image_i, image_pred in enumerate(prediction):
         # Filter out confidence scores below threshold
         conf_mask = (image_pred[:, 4] >= conf_thres).squeeze()
-        index = []
-        for i in range(conf_mask.size(0)):
-            if (conf_mask[i]>0):
-                index.append(i)
-        if len(index) == 0:
-            break
-        image_pred = image_pred[index]
+        image_pred = image_pred[conf_mask]
         # If none are remaining => process next image
-        #if not image_pred.size(0):
-        #    continue
+        if not image_pred.size(0):
+            continue
         # Get score and class with highest confidence
         class_conf, class_pred = torch.max(image_pred[:, 5:5 + num_classes], 1,  keepdim=True)
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         detections = torch.cat((image_pred[:, :5], class_conf.float(), class_pred.float()), 1)
         # Iterate through all predicted classes
-        unique_labels = torch.from_numpy(np.unique(detections[:, -1].cpu().numpy()))
+        unique_labels = detections[:, -1].cpu().unique()
         if prediction.is_cuda:
             unique_labels = unique_labels.cuda()
         for c in unique_labels:
             # Get the detections with the particular class
-            nIndex = []
-            for n in range(detections.size(0)):
-                if detections[n, -1] == c:
-                    nIndex.append(n)
-            detections_class = detections[nIndex]
+            detections_class = detections[detections[:, -1] == c]
             # Sort the detections by maximum objectness confidence
             _, conf_sort_index = torch.sort(detections_class[:, 4], descending=True)
             detections_class = detections_class[conf_sort_index]
@@ -263,15 +244,9 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.24, nms_thres=0.45
                 # Get the IOUs for all boxes with lower confidence
                 ious = bbox_iou(max_detections[-1], detections_class[1:])
                 # Remove detections with IoU >= NMS threshold
-                oIndex = []
-                for o in range(1, detections_class.size(0)):
-                    if (ious[o-1] < nms_thres):
-                        oIndex.append(o)
-                if len(oIndex) == 0:
-                    break
-                detections_class = detections_class[oIndex]
+                detections_class = detections_class[1:][ious < nms_thres]
 
-            max_detections = torch.cat(max_detections)
+            max_detections = torch.cat(max_detections).data
             # Add max detections to outputs
             output[image_i] = max_detections if output[image_i] is None else torch.cat((output[image_i], max_detections))
 

@@ -5,7 +5,7 @@ arch = "yolov3SPP"
 pretrainedModel = "yolov3SPP_cityscapes.pth"
 
 # resume from checkpoint
-resume = "./snapshot/yolov3SPP_best_model.pkl"
+resume = None#"./snapshot/yolov3SPP_best_model.pkl"#
 
 # learning rate
 base_lr = 0.001
@@ -40,7 +40,8 @@ iouThresh = 0.45
 confThresh=0.24
 
 jitter = 0.3
-hue = 0.1
+#hue = 0.1
+hue = 0
 saturation = 1.5
 exposure = 1.5
 

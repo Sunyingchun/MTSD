@@ -6,7 +6,7 @@ from math import ceil
 from torch.autograd import Variable
 
 import sys
-sys.path.append("/home/wfw/wissen_work/PytorchProject/Pytorch-MTSD")
+sys.path.append("/home/wfw/wissen_work/PytorchProject/PytorchENV/Pytorch-MTSD")
 
 from tools import caffe_pb2
 from models.utils import *
@@ -131,7 +131,7 @@ class yolov3SPP(nn.Module):
         # Final conv layers
         self.cbr_final = conv2DBatchNormRelu(512, 512, k_size=3, stride=1, 
                                                   padding=1, bias=False, leaky_relu=True)
-        self.dropout = nn.Dropout2d(p=0.1, inplace=True)
+        self.dropout = nn.Dropout2d(p=0.1, inplace=False)
         self.classification = nn.Conv2d(512, self.n_classes, 1, 1, 0)
         self.loss_fn = cross_entropy2d
         self.focalLoss = focalLoss
@@ -183,7 +183,7 @@ class yolov3SPP(nn.Module):
                         losses.append(l)
             loss_det = sum(losses)
 
-            return loss_seg, loss_det
+            return loss_seg, loss_det#  
 
         else:
             objects = []
